@@ -1,0 +1,6 @@
+{
+  "name": "SingaFX",
+  "description": "Singapore-based real-time SGD exchange rate tool and minimalist currency calculator ready for MAS API integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
