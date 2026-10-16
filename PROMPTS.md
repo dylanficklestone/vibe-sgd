@@ -103,3 +103,26 @@ export this chat as a .md file as PROMPTS.md
 
 ### Action
 - Generated and saved `PROMPTS.md` containing the complete prompt and solution log.
+
+---
+
+## Prompt 5: MAS Gateway 401 / Authentication Rejection Diagnosis & Fix
+
+### User Prompt
+```text
+I got this issue when I tested my API. Monetary Authority of Singapore (MAS) API rejected the request due to authentication. Please verify your MAS_API_KEY.
+Handshake roundtrip: 1387ms · Protocol: HTTP/2 TLS 1.3
+```
+
+### Root Cause Analysis & Fix
+1. **Header Conflict in Upstream Gateway**:
+   - The upstream Monetary Authority of Singapore gateway runs on **Axway API Manager (Vordel)**.
+   - When an `Authorization: Bearer <key>` header was sent alongside `apikey`, Axway treated the API key as an OAuth2 JWT token. Because it was not an OIDC-signed bearer token, Axway aborted request processing with `fault:MessageBlocked`.
+   - Updated `/api/exchangerates.ts` to send the native Axway headers (`KeyId`, `apikey`, `X-API-KEY`) and reserved `Authorization: Bearer` strictly for OAuth2 access tokens.
+2. **Added Browser User-Agent**:
+   - Replaced generic user-agent with standard browser user-agent to avoid WAF / F5 BIG-IP blocking.
+3. **Portal Subscription Requirement & UI Diagnostics (`src/components/MasApiModal.tsx`)**:
+   - Added explanation for the MAS Developer Portal requirement: Applications must be explicitly **Subscribed** to the *"Monthly Statistical Bulletin / Exchange Rates"* API under **My Applications > APIs**; otherwise, the gateway rejects even valid keys.
+   - Added selectable **Header Convention** dropdown (`Auto / KeyId`, `OAuth2 Bearer`, `URL Query Parameter`).
+   - Added custom **Target Date** selector.
+   - Added collapsible raw XML/JSON upstream response viewer and MAS Correlation ID tracker.
