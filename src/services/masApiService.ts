@@ -6,6 +6,20 @@ const STORAGE_KEY_MAS_CONFIG = 'singafx_mas_config_v1';
 export const MAS_GATEWAY_URL =
   'https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610ora/exchange_rates_end_of_period_daily/views/exchange_rates_end_of_peiod_daily';
 
+export interface MasTestResult {
+  success: boolean;
+  latencyMs: number;
+  message: string;
+  correlationId?: string;
+  diagnosis?: {
+    parsedFault: string;
+    correlationId: string;
+    possibleCauses: string[];
+  };
+  samplePayload?: Record<string, unknown>;
+  rawUpstreamBody?: string;
+}
+
 export const DEFAULT_MAS_CONFIG: MasApiConfig = {
   apiKey: '',
   datasetId: 'exchange_rates_end_of_period_daily',
@@ -73,25 +87,33 @@ const MAS_API_BASE =
 
 export default async function handler(req: Request, res: Response) {
   const targetDate = (req.query.end_of_day as string) || '2026-10-14';
-  const apiKey = process.env.MAS_API_KEY || (req.headers['x-mas-api-key'] as string) || '';
+  const apiKey = (process.env.MAS_API_KEY || (req.headers['x-mas-api-key'] as string) || '').trim();
 
   const masUrl = new URL(MAS_API_BASE);
   masUrl.searchParams.set('end_of_day', targetDate);
 
   const headers: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: 'application/json, text/plain, */*',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
   };
+
+  // Axway API Manager accepts KeyId / apikey / X-API-KEY
   if (apiKey) {
-    headers['apikey'] = apiKey;
-    headers['Authorization'] = \`Bearer \${apiKey}\`;
+    if (apiKey.startsWith('Bearer ') || (apiKey.startsWith('ey') && apiKey.includes('.'))) {
+      headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : \`Bearer \${apiKey}\`;
+    } else {
+      headers['KeyId'] = apiKey;
+      headers['apikey'] = apiKey;
+      headers['X-API-KEY'] = apiKey;
+    }
   }
 
   try {
     const upstream = await fetch(masUrl.toString(), { headers });
-    const data = await upstream.json();
+    const data = await upstream.json().catch(() => null);
     return res.status(upstream.status).json({ success: upstream.ok, data });
   } catch (err) {
-    return res.status(502).json({ error: 'MAS Gateway Unreachable', details: err });
+    return res.status(502).json({ error: 'MAS Gateway Unreachable', details: String(err) });
   }
 }`;
   }
@@ -99,12 +121,11 @@ export default async function handler(req: Request, res: Response) {
   /**
    * Test connection directly to the serverless /api/exchangerates endpoint
    */
-  public static async testConnection(apiKey: string): Promise<{
-    success: boolean;
-    latencyMs: number;
-    message: string;
-    samplePayload?: Record<string, unknown>;
-  }> {
+  public static async testConnection(
+    apiKey: string,
+    targetDate = '2026-10-14',
+    authType = 'auto'
+  ): Promise<MasTestResult> {
     const startTime = performance.now();
     try {
       const headers: Record<string, string> = {
@@ -112,41 +133,43 @@ export default async function handler(req: Request, res: Response) {
       };
       if (apiKey.trim()) {
         headers['x-mas-api-key'] = apiKey.trim();
+        headers['x-mas-auth-type'] = authType;
       }
 
-      const res = await fetch('/api/exchangerates?end_of_day=2026-10-14', {
+      const res = await fetch(`/api/exchangerates?end_of_day=${encodeURIComponent(targetDate)}&auth_type=${authType}`, {
         headers,
       });
       const latencyMs = Math.round(performance.now() - startTime);
+      const json = await res.json().catch(() => null);
 
       if (res.ok) {
-        const json = await res.json();
         return {
           success: true,
           latencyMs,
-          message: 'Connected to MAS API Gateway via /api/exchangerates.',
+          message: 'Connected successfully to MAS API Gateway via /api/exchangerates.',
+          correlationId: json?.correlationId,
           samplePayload: json,
         };
       } else {
-        const errorData = await res.json().catch(() => null);
         return {
           success: false,
           latencyMs,
+          correlationId: json?.correlationId,
+          diagnosis: json?.diagnosis,
           message:
-            errorData?.message ||
-            `Server responded with HTTP ${res.status} (${res.statusText}). MAS API Key may be required or unverified.`,
-          samplePayload: errorData,
+            json?.message ||
+            `Server responded with HTTP ${res.status} (${res.statusText}).`,
+          samplePayload: json,
+          rawUpstreamBody: json?.rawUpstreamBody,
         };
       }
     } catch {
-      // Fallback simulation when running client-only
       const latencyMs = Math.round(performance.now() - startTime);
       return {
         success: apiKey.trim().length > 0,
         latencyMs,
-        message: apiKey.trim()
-          ? 'Validation ready: MAS API Key parameter recorded for /api/exchangerates.'
-          : 'Serverless endpoint /api/exchangerates ready. Add MAS_API_KEY into environment variables.',
+        message:
+          'Local endpoint /api/exchangerates ready. Add MAS_API_KEY into your .env file or server environment.',
       };
     }
   }
