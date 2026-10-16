@@ -146,17 +146,18 @@ export const MasApiModal: React.FC<MasApiModalProps> = ({ isOpen, onClose }) => 
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-xs">
-                  <span className="text-neutral-400 block">Dataset Endpoint</span>
-                  <span className="font-mono text-neutral-900 dark:text-neutral-100 break-all text-[11px]">
-                    eservices.mas.gov.sg/api/action/datastore_search
-                  </span>
+                  <span className="text-neutral-400 block mb-0.5">Local Serverless Endpoints</span>
+                  <div className="font-mono text-neutral-900 dark:text-neutral-100 text-[11px] space-y-0.5">
+                    <div>/api/health</div>
+                    <div>/api/exchangerates</div>
+                  </div>
                 </div>
                 <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-xs">
-                  <span className="text-neutral-400 block">Quotation Frequency</span>
-                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                    End of Day (Singapore Time 17:00 SGT)
+                  <span className="text-neutral-400 block mb-0.5">Upstream MAS Gateway</span>
+                  <span className="font-mono text-neutral-900 dark:text-neutral-100 text-[10px] break-all leading-tight block">
+                    apimg-gw/.../exchange_rates_end_of_peiod_daily?end_of_day=2026-10-14
                   </span>
                 </div>
               </div>
